@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-type AuthMode = 'login' | 'register';
+type AuthMode = 'login' | 'register' | 'profile';
 type InputStatus = 'idle' | 'loading' | 'success' | 'error';
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -121,6 +121,7 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [userProfile, setUserProfile] = useState<{ id: number; name: string; email: string; phone?: string } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -134,23 +135,96 @@ export default function App() {
 
   const switchMode = (m: AuthMode) => { resetForm(); setMode(m); };
 
+  const fetchProfile = async (authToken: string) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setUserProfile(data.user);
+        setMode('profile');
+      } else {
+        localStorage.removeItem('token');
+        setUserProfile(null);
+        setMode('login');
+      }
+    } catch (err) {
+      console.error("Profile Fetch Error:", err);
+      localStorage.removeItem('token');
+      setUserProfile(null);
+      setMode('login');
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchProfile(token);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUserProfile(null);
+    switchMode('login');
+    showToast('Logged out successfully!', 'success');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('loading');
-    await new Promise(r => setTimeout(r, 1500));
-    if (mode === 'register') {
-      showToast('Account created! Please log in.', 'success');
-      setTimeout(() => switchMode('login'), 700);
-    } else {
-      showToast('Welcome back to Bank-X!', 'success');
-      setStatus('idle');
+
+    // Decide API endpoint based on current Mode (login/register)
+    const endpoint = mode === 'register' ? 'register' : 'login';
+    const payload = mode === 'register' 
+      ? { name, phone, email, password }
+      : { email, password };
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/auth/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Show error message returned by backend
+        showToast(data.error || 'Something went wrong!', 'error');
+        setStatus('error');
+        return;
+      }
+
+      // Success
+      showToast(data.message || 'Success!', 'success');
+      setStatus('success');
+
+      if (mode === 'register') {
+        setTimeout(() => {
+          switchMode('login');
+        }, 1000);
+      } else {
+        // Store JWT token for authentication state
+        localStorage.setItem('token', data.token);
+        await fetchProfile(data.token);
+      }
+    } catch (error) {
+      console.error("API Error:", error);
+      showToast('Cannot connect to backend server.', 'error');
+      setStatus('error');
     }
   };
 
   const isLoading = status === 'loading';
 
   return (
-    <div className="relative min-h-screen bg-[#060a12] flex items-center justify-center p-6 overflow-hidden">
+    <div className="relative min-h-screen bg-[#060a12] flex items-center justify-center p-4 md:p-6 overflow-hidden">
 
       {/* Animated blobs */}
       <div className="absolute -top-32 -left-24 w-[560px] h-[560px] rounded-full pointer-events-none"
@@ -176,24 +250,19 @@ export default function App() {
       )}
 
       {/* Card */}
-      <div className="relative z-10 flex w-full max-w-[1000px] min-h-[600px] rounded-[28px] overflow-hidden backdrop-blur-3xl"
+      <div className="relative z-10 flex w-full max-w-[1000px] h-[min(90vh,680px)] rounded-[28px] overflow-hidden backdrop-blur-3xl"
         style={{ boxShadow: '0 40px 120px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.05)', background: 'rgba(8,12,22,0.7)' }}>
 
         {/* Left panel */}
-        <div className="hidden lg:flex flex-col flex-[0_0_420px] p-[52px_44px] relative overflow-hidden"
+        <div className="hidden lg:flex flex-col flex-[0_0_420px] p-[40px_36px] relative overflow-hidden"
           style={{ background: 'linear-gradient(135deg,#1e1060 0%,#3b0f6e 40%,#1a0a40 100%)' }}>
           <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full pointer-events-none"
             style={{ background: 'radial-gradient(circle,rgba(99,102,241,0.25) 0%,transparent 65%)' }} />
 
           <div className="relative z-10 flex flex-col h-full">
             {/* Logo */}
-            <div className="flex items-center gap-3.5 mb-12">
-              <div className="w-11 h-11 rounded-[14px] bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white"
-                style={{ boxShadow: '0 0 24px rgba(99,102,241,0.5)' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
-                </svg>
-              </div>
+            <div className="flex items-center gap-3.5 mb-8">
+              <img src="/favicon.png" alt="Bank-X Logo" className="w-14 h-14 object-contain" />
               <div>
                 <div className="text-[22px] font-extrabold text-white tracking-tight">Bank-X</div>
                 <div className="text-[9px] font-bold text-white/40 tracking-[2.5px] uppercase mt-0.5">Next-Gen Banking</div>
@@ -201,7 +270,7 @@ export default function App() {
             </div>
 
             {/* Features */}
-            <div className="flex flex-col gap-4 flex-1">
+            <div className="flex flex-col gap-3.5 flex-1 justify-center">
               {['Zero-fee international transfers','AI-powered spending insights','Real-time fraud protection','Up to 4.5% annual yield'].map((f, i) => (
                 <div key={i} className="flex items-center gap-3.5">
                   <div className="w-7 h-7 rounded-[8px] bg-indigo-500/20 border border-indigo-500/35 flex items-center justify-center text-indigo-300 shrink-0">
@@ -213,7 +282,7 @@ export default function App() {
             </div>
 
             {/* Deco card */}
-            <div className="mt-10 rounded-[18px] p-6 border border-white/[0.12]"
+            <div className="mt-6 rounded-[18px] p-5 border border-white/[0.12]"
               style={{ background: 'linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-[9px] font-bold text-white/50 tracking-[1.5px]">BANK-X PLATINUM</span>
@@ -224,100 +293,160 @@ export default function App() {
                 {'••••  ••••  ••••  1890'}
               </div>
               <div className="flex justify-between text-[11px] font-semibold text-white/60">
-                <span>VIVEK KUMAR</span><span>12/31</span>
+                <span>{userProfile ? userProfile.name.toUpperCase() : 'YOUR NAME'}</span><span>12/31</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right panel */}
-        <div className="flex-1 flex flex-col px-12 py-[52px] overflow-y-auto" style={{ background: 'rgba(7,11,19,0.6)' }}>
+        <div className="flex-1 flex flex-col px-10 py-8 overflow-y-auto" style={{ background: 'rgba(7,11,19,0.6)' }}>
+          {mode === 'profile' ? (
+            <div className="flex flex-col h-full justify-between">
+              <div>
+                {/* Heading */}
+                <div className="mb-6">
+                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-3 py-1 rounded-full">
+                    Customer Account
+                  </span>
+                  <h1 className="text-[28px] font-extrabold text-white tracking-tight mt-3 mb-1">
+                    Welcome, {userProfile?.name}!
+                  </h1>
+                  <p className="text-[13px] text-white/45">
+                    Your secure Next-Gen Bank-X portal is active.
+                  </p>
+                </div>
 
-          {/* Tabs */}
-          <div className="flex bg-white/[0.04] border border-white/[0.06] rounded-xl p-1 gap-1 w-fit mb-9">
-            {(['login', 'register'] as AuthMode[]).map(m => (
-              <button key={m} id={`tab-${m}`} onClick={() => switchMode(m)}
-                className={`px-7 py-2.5 rounded-[9px] text-[13px] font-semibold tracking-wide transition-all duration-200 cursor-pointer border-0 ${
-                  mode === m
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.35)]'
-                    : 'bg-transparent text-white/45 hover:text-white/70'
-                }`}>
-                {m === 'login' ? 'Login' : 'Register'}
-              </button>
-            ))}
-          </div>
+                {/* Profile Details */}
+                <div className="flex flex-col gap-4 mt-6">
+                  <div className="flex items-center gap-4 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-indigo-500/20">
+                      {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">{userProfile?.name}</div>
+                      <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5 mt-0.5">
+                        <IconShield /> Verified Account
+                      </div>
+                    </div>
+                  </div>
 
-          {/* Heading */}
-          <div className="mb-8">
-            <h1 className="text-[26px] font-extrabold text-white tracking-tight mb-2 leading-tight">
-              {mode === 'login' ? 'Welcome back' : 'Create your account'}
-            </h1>
-            <p className="text-[13.5px] text-white/45">
-              {mode === 'login' ? 'Sign in to access your Bank-X dashboard.' : 'Join Bank-X and take control of your finances.'}
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {mode === 'register' && (
-              <Field id="field-name" label="Full Name" icon={<IconUser />}
-                type="text" placeholder="e.g. Vivek Kumar"
-                value={name} onChange={setName} disabled={isLoading} required />
-            )}
-            {mode === 'register' && (
-              <Field id="field-phone" label="Phone Number" icon={<IconPhone />}
-                type="tel" placeholder="+91 98765 43210"
-                value={phone} onChange={setPhone} disabled={isLoading} required />
-            )}
-            <Field id="field-email" label="Email Address" icon={<IconMail />}
-              type="email" placeholder="you@example.com"
-              value={email} onChange={setEmail} disabled={isLoading} required />
-            <Field id="field-password" label="Password" icon={<IconLock />}
-              type={showPw ? 'text' : 'password'}
-              placeholder={mode === 'register' ? 'Min. 8 characters' : '••••••••'}
-              value={password} onChange={setPassword} disabled={isLoading} required
-              suffix={
-                <button type="button" id="btn-toggle-password"
-                  onClick={() => setShowPw(p => !p)}
-                  className="px-3.5 text-white/30 hover:text-white/60 flex items-center shrink-0 transition-colors border-0 bg-transparent cursor-pointer">
-                  {showPw ? <IconEyeOff /> : <IconEye />}
-                </button>
-              } />
-
-            {mode === 'login' && (
-              <div className="flex justify-end -mt-1">
-                <a href="#" id="link-forgot-password"
-                  className="text-[12.5px] text-indigo-400 font-semibold hover:text-indigo-300 transition-colors no-underline">
-                  Forgot password?
-                </a>
+                  <div className="bg-[#0d1321]/80 border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-4">
+                    <div className="flex justify-between items-center border-b border-white/[0.05] pb-3">
+                      <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">Email Address</span>
+                      <span className="text-sm font-medium text-white/80">{userProfile?.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-white/[0.05] pb-3">
+                      <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">Phone Number</span>
+                      <span className="text-sm font-medium text-white/80">{userProfile?.phone || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">Account Number</span>
+                      <span className="text-sm font-mono font-medium text-indigo-300">SAVINGS &bull;&bull;&bull;&bull; 1890</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
 
-            <button id={mode === 'login' ? 'btn-login-submit' : 'btn-register-submit'}
-              type="submit" disabled={isLoading}
-              className="mt-1 py-4 px-6 rounded-[13px] bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed border-0 cursor-pointer"
-              style={{ boxShadow: '0 8px 24px rgba(99,102,241,0.35)' }}>
-              {isLoading
-                ? <span className="w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span><IconArrow /></>}
-            </button>
-          </form>
+              {/* Action Buttons */}
+              <div className="mt-8 flex flex-col gap-3">
+                <button 
+                  onClick={handleLogout}
+                  className="py-4 px-6 rounded-[13px] bg-gradient-to-r from-red-600 to-rose-700 text-white text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-0 cursor-pointer shadow-lg shadow-rose-900/35"
+                >
+                  Sign Out of Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Tabs */}
+              <div className="flex bg-white/[0.04] border border-white/[0.06] rounded-xl p-1 gap-1 w-fit mb-6">
+                {(['login', 'register'] as AuthMode[]).map(m => (
+                  <button key={m} id={`tab-${m}`} onClick={() => switchMode(m)}
+                    className={`px-7 py-2.5 rounded-[9px] text-[13px] font-semibold tracking-wide transition-all duration-200 cursor-pointer border-0 ${
+                      mode === m
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.35)]'
+                        : 'bg-transparent text-white/45 hover:text-white/70'
+                    }`}>
+                    {m === 'login' ? 'Login' : 'Register'}
+                  </button>
+                ))}
+              </div>
 
-          {/* Switch */}
-          <p className="mt-6 text-[13px] text-white/40 text-center">
-            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-            <button id={mode === 'login' ? 'btn-go-register' : 'btn-go-login'}
-              onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
-              className="text-indigo-400 font-bold hover:text-indigo-300 transition-colors bg-transparent border-0 cursor-pointer text-[13px] p-0">
-              {mode === 'login' ? 'Register here' : 'Log in here'}
-            </button>
-          </p>
+              {/* Heading */}
+              <div className="mb-6">
+                <h1 className="text-[26px] font-extrabold text-white tracking-tight mb-2 leading-tight">
+                  {mode === 'login' ? 'Welcome back' : 'Create your account'}
+                </h1>
+                <p className="text-[13.5px] text-white/45">
+                  {mode === 'login' ? 'Sign in to access your Bank-X dashboard.' : 'Join Bank-X and take control of your finances.'}
+                </p>
+              </div>
 
-          {/* Security badge */}
-          <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-emerald-500/60 font-semibold tracking-wide">
-            <IconShield />
-            <span>256-bit SSL encrypted &middot; Bank-grade security</span>
-          </div>
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {mode === 'register' && (
+                  <Field id="field-name" label="Full Name" icon={<IconUser />}
+                    type="text" placeholder="e.g. Your Name"
+                    value={name} onChange={setName} disabled={isLoading} required />
+                )}
+                {mode === 'register' && (
+                  <Field id="field-phone" label="Phone Number" icon={<IconPhone />}
+                    type="tel" placeholder="+91 98765 43210"
+                    value={phone} onChange={setPhone} disabled={isLoading} required />
+                )}
+                <Field id="field-email" label="Email Address" icon={<IconMail />}
+                  type="email" placeholder="you@example.com"
+                  value={email} onChange={setEmail} disabled={isLoading} required />
+                <Field id="field-password" label="Password" icon={<IconLock />}
+                  type={showPw ? 'text' : 'password'}
+                  placeholder={mode === 'register' ? 'Min. 8 characters' : '••••••••'}
+                  value={password} onChange={setPassword} disabled={isLoading} required
+                  suffix={
+                    <button type="button" id="btn-toggle-password"
+                      onClick={() => setShowPw(p => !p)}
+                      className="px-3.5 text-white/30 hover:text-white/60 flex items-center shrink-0 transition-colors border-0 bg-transparent cursor-pointer">
+                      {showPw ? <IconEyeOff /> : <IconEye />}
+                    </button>
+                  } />
+
+                {mode === 'login' && (
+                  <div className="flex justify-end -mt-1">
+                    <a href="#" id="link-forgot-password"
+                      className="text-[12.5px] text-indigo-400 font-semibold hover:text-indigo-300 transition-colors no-underline">
+                      Forgot password?
+                    </a>
+                  </div>
+                )}
+
+                <button id={mode === 'login' ? 'btn-login-submit' : 'btn-register-submit'}
+                  type="submit" disabled={isLoading}
+                  className="mt-1 py-4 px-6 rounded-[13px] bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold flex items-center justify-center gap-2.5 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed border-0 cursor-pointer"
+                  style={{ boxShadow: '0 8px 24px rgba(99,102,241,0.35)' }}>
+                  {isLoading
+                    ? <span className="w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span><IconArrow /></>}
+                </button>
+              </form>
+
+              {/* Switch */}
+              <p className="mt-5 text-[13px] text-white/40 text-center">
+                {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                <button id={mode === 'login' ? 'btn-go-register' : 'btn-go-login'}
+                  onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+                  className="text-indigo-400 font-bold hover:text-indigo-300 transition-colors bg-transparent border-0 cursor-pointer text-[13px] p-0">
+                  {mode === 'login' ? 'Register here' : 'Log in here'}
+                </button>
+              </p>
+
+              {/* Security badge */}
+              <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-emerald-500/60 font-semibold tracking-wide">
+                <IconShield />
+                <span>256-bit SSL encrypted &middot; Bank-grade security</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
