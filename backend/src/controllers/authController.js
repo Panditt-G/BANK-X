@@ -1,36 +1,42 @@
 const pool = require("../db/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const {createAccount} = require("../controllers/accountcreat");
 
 // 1. User Registration Logic
-// exports.register = async (req, res) => {
-//   const { name, phone, email, password } = req.body;
-//   try {
-//     // Check if user already exists
-//     const userExist = await pool.query(
-//       "SELECT * FROM users WHERE email = $1 OR phone = $2",
-//       [email, phone]
-//     );
-//     if (userExist.rows.length > 0) {
-//       return res.status(400).json({ error: "Email or Phone already registered." });
-//     }
+exports.register = async (req, res) => {
+  const { name, phone, email, password } = req.body;
+  try {
+    // Check if user already exists
+    const userExist = await pool.query(
+      "SELECT * FROM users WHERE email = $1 OR phone = $2",
+      [email, phone]
+    );
+    if (userExist.rows.length > 0) {
+      return res.status(400).json({ error: "Email or Phone already registered." });
+    }
 
-//     // Hash the password
-//     const saltRounds = 10;
-//     const hashedPassword = await bcrypt.hash(password, saltRounds);
+    // Hash the password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-//     // Insert user into DB
-//     const newUser = await pool.query(
-//       "INSERT INTO users (name, phone, email, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email",
-//       [name, phone, email, hashedPassword]
-//     );
-
-//     res.status(201).json({ message: "Registration successful!", user: newUser.rows[0] });
-//   } catch (error) {
-//     console.error("Register Error:", error);
-//     res.status(500).json({ error: "Internal Server Error" });
-//   }
-// };
+    // Insert user into DB
+    const newUser = await pool.query(
+      "INSERT INTO users (name, phone, email, password) VALUES ($1, $2, $3, $4) RETURNING id, name, email",
+      [name, phone, email, hashedPassword]
+    );
+    const createdAccount = await createAccount(newUser.rows[0].id,name);
+    
+    res.status(201).json({ 
+      message: "Registration successful!", 
+      user: newUser.rows[0], 
+      account: createdAccount 
+    });
+  } catch (error) {
+    console.error("Register Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 // 2. User Login Logic
 exports.login = async (req, res) => {
@@ -69,25 +75,25 @@ exports.login = async (req, res) => {
 };
 
 
-// user registration login check....
-exports.register = async(req,res) => {
-  const{name,phone,email,password}=req.body
-    try{
-      const user  = await pool.query("select * from users where email = $1 or phone = $2",[email,phone]);
-      if(user.rows.length > 0){
-        return res.status(400).json({error:"user Email or phone number already exit"})
-      }
+// // user registration login check....
+// exports.register = async(req,res) => {
+//   const{name,phone,email,password}=req.body
+//     try{
+//       const user  = await pool.query("select * from users where email = $1 or phone = $2",[email,phone]);
+//       if(user.rows.length > 0){
+//         return res.status(400).json({error:"user Email or phone number already exit"})
+//       }
 
-      //hash passowrd
-      const hashpassword = await bcrypt.hash(password,10);
+//       //hash passowrd
+//       const hashpassword = await bcrypt.hash(password,10);
 
-      //user insert
-      const newUser = await pool.query(" INSERT INTO  USERS (name,phone ,email,password) VALUES ($1,$2,$3,$4) RETURNING id,name,email",[name,phone,email,hashpassword]);
-      res.status(201).json({message:"user registration successfull!!!"})
-    }
-    catch(error){
-        console.error("register error:",error)
-        res.status(500).json({error:"Internal server error",details:error.message})
-    }
+//       //user insert
+//       const newUser = await pool.query(" INSERT INTO  USERS (name,phone ,email,password) VALUES ($1,$2,$3,$4) RETURNING id,name,email",[name,phone,email,hashpassword]);
+//       res.status(201).json({message:"user registration successfull!!!"})
+//     }
+//     catch(error){
+//         console.error("register error:",error)
+//         res.status(500).json({error:"Internal server error",details:error.message})
+//     }
   
-}
+// }

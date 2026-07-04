@@ -10,7 +10,7 @@ router.post("/login", authController.login);
 router.get("/profile", authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      "select id,name,email,phone from users where id = $1",
+      "select u.id,u.name,u.email,u.phone ,a.account_number,a.account_type,a.balance ,a.upi_id from users u left join accounts a on u.id = a.user_id where u.id = $1",
       [req.user.id],
     );
  
