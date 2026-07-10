@@ -22,7 +22,8 @@ app.use("/api/auth", authRoutes);
 
  const Path = path.join(__dirname, "..","../public/index.html"  )
  console.log(path);
- console.log(__dirname);
+ console.log("__dirname",__dirname);
+ console.log("Path",Path);
  
  
 app.get("*name",(req,res)=>{
