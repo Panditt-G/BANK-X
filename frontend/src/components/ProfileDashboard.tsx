@@ -14,7 +14,7 @@ export function ProfileDashboard({ userProfile, handleLogout, refreshProfile }: 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
