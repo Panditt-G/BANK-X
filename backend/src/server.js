@@ -15,10 +15,10 @@ app.use(express.static(path.join(__dirname, "..", "../frontend/dist")));
 
 app.use("/api/auth", authRoutes);
 
-app.get("/", async (req, res) => {
-  const result = await pool.query("SELECT NOW()");
-  res.json(result.rows);
-});
+// app.get("/", async (req, res) => {
+//   const result = await pool.query("SELECT NOW()");
+//   res.json(result.rows);
+// });
 
 app.get("*name",(req,res)=>{
  
