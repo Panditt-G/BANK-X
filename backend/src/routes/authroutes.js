@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require("../controllers/authController");
 const authMiddleware = require("../middleware/authmiddleware");
 const pool = require("../db/db");
+const { depositmoney } = require("../controllers/depositmoney");
 
 router.post("/register", authController.register);
 router.post("/login", authController.login);
@@ -30,4 +31,8 @@ router.get("/profile", authMiddleware, async (req, res) => {
       .json({ error: "Internal server error", details: error.message });
   }
 });
+
+router.post("/deposit",authMiddleware, depositmoney);
+
+
 module.exports = router;
