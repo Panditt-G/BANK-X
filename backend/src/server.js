@@ -20,9 +20,14 @@ app.use("/api/auth", authRoutes);
 //   res.json(result.rows);
 // });
 
+ const Path = path.join(__dirname, "..","../public/index.html"  )
+ console.log(path);
+ console.log(__dirname);
+ 
+ 
 app.get("*name",(req,res)=>{
  
- res.sendFile(path.join(__dirname, "..","../public/index.html"))
+ res.sendFile(Path)
  
 })
 
